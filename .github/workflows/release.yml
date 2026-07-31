@@ -68,17 +68,40 @@ jobs:
           cd build && ditto -c -k --keepParent DesktopCat.app "$(basename "$ZIP")" && cd ..
           echo "path=$ZIP" >> "$GITHUB_OUTPUT"
 
+      - name: Build DMG
+        env:
+          SIGN_IDENTITY: ${{ secrets.SIGN_IDENTITY }}
+        run: ./scripts/build-dmg.sh
+
+      - name: Notarize + staple DMG
+        run: |
+          NOTARY_PROFILE=ci-notary NOTARY_KEYCHAIN="$HOME/Library/Keychains/build.keychain-db" \
+            ./scripts/notarize-dmg.sh
+
+      - name: Rename DMG with version
+        id: dmg
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          [ "$GITHUB_REF_NAME" = "$VERSION" ] && VERSION="dev-${GITHUB_SHA::7}"
+          DMG="build/DesktopCat-${VERSION}.dmg"
+          mv build/DesktopCat.dmg "$DMG"
+          echo "path=$DMG" >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.zip.outputs.path }}
+          files: |
+            ${{ steps.dmg.outputs.path }}
+            ${{ steps.zip.outputs.path }}
           generate_release_notes: true
 
-      - name: Upload artifact (manual runs)
+      - name: Upload artifacts (manual runs)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: DesktopCat-app
-          path: ${{ steps.zip.outputs.path }}
+          path: |
+            ${{ steps.dmg.outputs.path }}
+            ${{ steps.zip.outputs.path }}
           retention-days: 14

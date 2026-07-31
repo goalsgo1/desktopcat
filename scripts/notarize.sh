@@ -13,13 +13,6 @@ BUNDLE="$ROOT/build/DesktopCat.app"
 PROFILE="${NOTARY_PROFILE:-desktopcat-notary}"
 ZIP="$ROOT/build/DesktopCat.zip"
 
-# Optional: path to a specific keychain to look the profile up in (e.g. a CI
-# temporary keychain). Defaults to searching the normal keychain search list.
-KEYCHAIN_ARGS=()
-if [ -n "${NOTARY_KEYCHAIN:-}" ]; then
-    KEYCHAIN_ARGS=(--keychain "$NOTARY_KEYCHAIN")
-fi
-
 if [ ! -d "$BUNDLE" ]; then
     echo "error: $BUNDLE not found — run scripts/build-app.sh first" >&2
     exit 1
@@ -30,7 +23,15 @@ rm -f "$ZIP"
 ditto -c -k --keepParent "$BUNDLE" "$ZIP"
 
 echo "==> Submitting to Apple notary service (profile: $PROFILE)"
-xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" "${KEYCHAIN_ARGS[@]}" --wait
+# bash 3.2 (macOS's stock /bin/bash) treats "${ARR[@]}" on a zero-element array
+# as an unbound-variable error under `set -u`, so branch instead of building an
+# optional-args array — path to a specific keychain to look the profile up in
+# (e.g. a CI temporary keychain); defaults to the normal keychain search list.
+if [ -n "${NOTARY_KEYCHAIN:-}" ]; then
+    xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --keychain "$NOTARY_KEYCHAIN" --wait
+else
+    xcrun notarytool submit "$ZIP" --keychain-profile "$PROFILE" --wait
+fi
 
 echo "==> Stapling ticket"
 xcrun stapler staple "$BUNDLE"

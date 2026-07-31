@@ -22,15 +22,19 @@
 
 ## 설치
 
-[Releases](https://github.com/goalsgo1/desktopcat/releases)에서 최신 `DesktopCat-*.zip` 다운로드 → 압축 풀기 →
-`DesktopCat.app`을 `/Applications`로 이동 → 실행.
+[Releases](https://github.com/goalsgo1/desktopcat/releases)에서 최신 `DesktopCat-*.dmg` 다운로드 →
+더블클릭해서 열기 → 뜨는 창에서 **DesktopCat 아이콘을 Applications 폴더 아이콘으로 드래그** →
+`/Applications`에서 실행.
 
 Developer ID로 서명 + 공증까지 된 앱이라 "확인되지 않은 개발자" 경고 없이 바로 열린다.
 
-⚠️ **`/Applications`로 옮기지 않고 다운로드 폴더에서 바로 실행하면 안 된다.** macOS가 앱을
-임시 읽기 전용 위치(App Translocation)에서 실행시켜서 **"업데이트 확인"과 "앱 삭제..."가
-동작하지 않는다** ("couldn't be moved to 'd'..." 오류). 앱을 실행하기 전에 반드시 Finder에서
-`DesktopCat.app`을 `/Applications`로 옮긴 뒤 거기서 실행할 것.
+⚠️ **DMG 창에서 Applications로 드래그하지 않고, 마운트된 DMG 안에서 바로 실행하거나
+다운로드 폴더에 압축을 풀어서 바로 실행하면 안 된다.** macOS가 앱을 임시 읽기 전용
+위치(App Translocation)에서 실행시켜서 **"업데이트 확인"과 "앱 삭제..."가 동작하지 않는다**
+("couldn't be moved to 'd'..." 오류). 반드시 Applications로 옮긴 뒤 거기서 실행할 것.
+
+(참고: Releases에는 `.zip`도 같이 올라가는데, 이건 앱 안 "업데이트 확인" 기능이 자동으로
+받는 용도라 사람이 직접 받을 필요는 없다.)
 
 ## 사용법
 
@@ -43,8 +47,10 @@ Developer ID로 서명 + 공증까지 된 앱이라 "확인되지 않은 개발�
 
 설정 패널의 **업데이트 확인** 버튼 → 최신 버전이 있으면 확인 창 → **업데이트** 누르면 다운로드부터
 설치, 재시작까지 자동으로 처리된다. Sparkle 같은 별도 프레임워크 없이 GitHub Releases API를 직접
-호출하는 가벼운 자체 구현. 정식 설치된 `.app`에서 실행 중일 때만 동작하며, 다운로드·압축 해제·검증이
-전부 끝난 뒤에야 기존 앱을 건드리므로(휴지통 이동 후 교체) 중간에 실패해도 기존 설치는 그대로 남는다.
+호출하는 가벼운 자체 구현. `/Applications`에 정식 설치된 `.app`에서 실행 중일 때만 동작하며
+(다운로드 폴더에서 바로 실행한 App Translocation 상태에서는 명확한 안내와 함께 거부),
+다운로드·압축 해제·검증이 전부 끝난 뒤에야 기존 앱을 원자적으로 교체하므로 중간에 실패해도
+기존 설치는 그대로 남는다.
 
 ## 삭제
 
