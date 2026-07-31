@@ -276,8 +276,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                   userInfo: [NSLocalizedDescriptionKey: "다운로드한 파일에서 DesktopCat.app을 찾을 수 없습니다."])
                 }
 
-                try? fm.trashItem(at: bundleURL, resultingItemURL: nil)
-                try fm.moveItem(at: newAppURL, to: bundleURL)
+                // replaceItemAt is built for exactly this "swap old for new" case — atomic,
+                // and doesn't choke if the destination already exists (unlike a plain
+                // trashItem-then-moveItem pair, where a failed/skipped trash silently left
+                // the old .app in place and made the follow-up move fail as "already exists").
+                _ = try fm.replaceItemAt(bundleURL, withItemAt: newAppURL)
 
                 DispatchQueue.main.async {
                     // NSWorkspace's launch APIs dedupe against the *current* (still-running)
