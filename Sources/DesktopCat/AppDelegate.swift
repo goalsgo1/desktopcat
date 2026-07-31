@@ -159,17 +159,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         catWindows.forEach { $0.applyWindowLevel() }
     }
 
-    /// Vertically stacked slots along the left edge of the multi-monitor bounds,
-    /// centered on screen middle height.
+    /// Slots along the left edge of the multi-monitor bounds, filled top-to-bottom
+    /// in a column and wrapping into a new column further right once a column runs
+    /// out of vertical room. Row count per column is derived from actual screen
+    /// height (not a fixed number), so it adapts to whatever display is in use and
+    /// never overflows off-screen no matter how many cats are lined up.
     private func alignmentSlots(count: Int) -> [CGPoint] {
         guard count > 0 else { return [] }
         let bounds = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
         let marginX: CGFloat = 120
-        let spacing: CGFloat = 90
-        let totalHeight = CGFloat(count - 1) * spacing
-        let startY = bounds.midY + totalHeight / 2
+        let columnSpacing: CGFloat = 130
+        let rowSpacing: CGFloat = 90
+        let topMargin: CGFloat = 60
+        let bottomMargin: CGFloat = 60
+        let usableHeight = max(bounds.height - topMargin - bottomMargin, rowSpacing)
+        let rowsPerColumn = max(1, Int(usableHeight / rowSpacing) + 1)
+        let startY = bounds.maxY - topMargin
+
         return (0..<count).map { i in
-            CGPoint(x: bounds.minX + marginX, y: startY - CGFloat(i) * spacing)
+            let column = i / rowsPerColumn
+            let row = i % rowsPerColumn
+            let x = bounds.minX + marginX + CGFloat(column) * columnSpacing
+            let y = startY - CGFloat(row) * rowSpacing
+            return CGPoint(x: x, y: y)
         }
     }
 
