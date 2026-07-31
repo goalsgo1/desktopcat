@@ -181,19 +181,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 
-    /// Moves ~/.desktopcat and the running .app bundle to the Trash, then quits.
-    /// Refuses to do anything unless actually running from an installed .app —
-    /// guards against nuking a raw dev build's containing folder while testing.
-    private func performUninstall() {
+    /// Returns nil if it's safe to modify/replace the running .app bundle in place,
+    /// or a user-facing explanation if not: either this is a raw dev binary (no
+    /// .app bundle at all), or macOS's App Translocation is sandboxing a
+    /// freshly-downloaded-but-not-yet-moved app into a random read-only temp
+    /// folder (its path contains "/AppTranslocation/../d/...") — writes there
+    /// always fail, which is exactly the "couldn't be moved to 'd'" error seen
+    /// when a user launches straight out of ~/Downloads instead of Applications.
+    private func selfModifyBlockReason() -> String? {
         let bundleURL = Bundle.main.bundleURL
         guard bundleURL.pathExtension == "app" else {
+            return "정식 설치된 .app에서 실행 중일 때만 이 기능을 쓸 수 있습니다."
+        }
+        if bundleURL.path.contains("/AppTranslocation/") {
+            return "다운로드 폴더에서 바로 실행하면 macOS가 앱을 임시 읽기 전용 위치에서 실행시켜서 "
+                + "이 기능을 쓸 수 없습니다.\nFinder에서 DesktopCat.app을 Applications 폴더로 옮긴 뒤 "
+                + "거기서 다시 실행해주세요."
+        }
+        return nil
+    }
+
+    /// Moves ~/.desktopcat and the running .app bundle to the Trash, then quits.
+    private func performUninstall() {
+        if let reason = selfModifyBlockReason() {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = "삭제할 수 없음"
-            alert.informativeText = "정식 설치된 .app에서 실행 중일 때만 이 기능을 쓸 수 있습니다."
+            alert.informativeText = reason
             alert.runModal()
             return
         }
+        let bundleURL = Bundle.main.bundleURL
 
         let fm = FileManager.default
         let configDir = fm.homeDirectoryForCurrentUser.appendingPathComponent(".desktopcat")
@@ -238,11 +256,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// then relaunches and quits. Any failure before that point leaves the
     /// running app completely untouched.
     private func installUpdate(from url: URL) {
-        let bundleURL = Bundle.main.bundleURL
-        guard bundleURL.pathExtension == "app" else {
-            showAlert(title: "업데이트 불가", message: "정식 설치된 .app에서 실행 중일 때만 이 기능을 쓸 수 있습니다.")
+        if let reason = selfModifyBlockReason() {
+            showAlert(title: "업데이트 불가", message: reason)
             return
         }
+        let bundleURL = Bundle.main.bundleURL
 
         let task = URLSession.shared.downloadTask(with: url) { [weak self] tempFile, _, error in
             guard let self else { return }
