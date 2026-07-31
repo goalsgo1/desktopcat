@@ -49,11 +49,18 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         window.level = .floating
 
         statusLabel = NSTextField(labelWithString: "고양이 \(catCount)마리 실행 중")
-        statusLabel.frame = NSRect(x: 16, y: 420, width: 248, height: 20)
+        statusLabel.frame = NSRect(x: 16, y: 420, width: 170, height: 20)
         statusLabel.textColor = .secondaryLabelColor
 
         let container = NSView(frame: NSRect(origin: .zero, size: rect.size))
         container.addSubview(statusLabel)
+
+        let versionLabel = NSTextField(labelWithString: "v\(UpdateChecker.currentVersion())")
+        versionLabel.frame = NSRect(x: 192, y: 420, width: 72, height: 20)
+        versionLabel.alignment = .right
+        versionLabel.textColor = .tertiaryLabelColor
+        versionLabel.font = .systemFont(ofSize: 11)
+        container.addSubview(versionLabel)
 
         let scrollView = NSScrollView(frame: NSRect(x: 16, y: 300, width: 248, height: 110))
         scrollView.hasVerticalScroller = true
