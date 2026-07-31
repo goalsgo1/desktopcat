@@ -22,6 +22,9 @@ rm -rf "$BUNDLE"
 mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 cp ".build/release/$APP_NAME" "$BUNDLE/Contents/MacOS/$APP_NAME"
 cp "Resources/Info.plist" "$BUNDLE/Contents/Info.plist"
+if [ -n "${APP_VERSION:-}" ]; then
+    /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" "$BUNDLE/Contents/Info.plist"
+fi
 
 echo "==> Codesigning with: $SIGN_IDENTITY"
 codesign --force --deep --options runtime \
