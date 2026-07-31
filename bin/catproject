@@ -1,0 +1,11 @@
+#!/bin/sh
+# Adds a project to the DesktopCat roster (~/.desktopcat/projects.txt), one cat per line.
+# Usage: catproject "프로젝트 이름"
+# Note: restart the DesktopCat app for the new cat to appear.
+set -e
+mkdir -p "$HOME/.desktopcat"
+FILE="$HOME/.desktopcat/projects.txt"
+touch "$FILE"
+if ! grep -qxF "$*" "$FILE"; then
+  printf '%s\n' "$*" >> "$FILE"
+fi
