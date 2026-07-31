@@ -9,7 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var summaryEditPanel: SummaryEditPanel!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        summaryEditPanel = SummaryEditPanel()
+        summaryEditPanel = SummaryEditPanel(onSave: { [weak self] oldName, newName, text in
+            self?.saveSummaryEdit(oldName: oldName, newName: newName, text: text)
+        })
         roster = ProjectRoster.load()
         roster.forEach { _ = ProjectSummaries.summary(for: $0) } // pre-create summary files so they're editable right away
         let positions = spawnPositions(count: roster.count)
@@ -77,6 +79,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             catWindows.remove(at: catIndex)
         }
 
+        refreshUI()
+    }
+
+    /// Saves the edited summary text, renaming the project first if the name
+    /// field changed — updates the roster, the cat's on-screen label, any
+    /// roamingExceptions membership, and the summary file's name, all together.
+    private func saveSummaryEdit(oldName: String, newName: String, text: String) {
+        guard newName != oldName else {
+            ProjectSummaries.write(text, for: oldName)
+            return
+        }
+        guard !roster.contains(newName) else {
+            showAlert(title: "이름 변경 실패", message: "\"\(newName)\" 프로젝트가 이미 있습니다.")
+            return
+        }
+
+        if let idx = roster.firstIndex(of: oldName) {
+            roster[idx] = newName
+            ProjectRoster.save(roster)
+        }
+        if let cat = catWindows.first(where: { $0.name == oldName }) {
+            cat.rename(to: newName)
+        }
+        if AppSettings.shared.roamingExceptions.remove(oldName) != nil {
+            AppSettings.shared.roamingExceptions.insert(newName)
+        }
+        ProjectSummaries.rename(oldName, to: newName)
+        ProjectSummaries.write(text, for: newName)
         refreshUI()
     }
 

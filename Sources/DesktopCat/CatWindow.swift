@@ -47,7 +47,7 @@ final class CatWindow {
     private var lastPoseSwapTime: TimeInterval = 0
     private var showTailFlick = false
     private var alignedTarget: CGPoint?
-    private let projectName: String
+    private var projectName: String
 
     init(label: String, initialPosition: CGPoint) {
         projectName = label
@@ -109,6 +109,12 @@ final class CatWindow {
     }
 
     var name: String { projectName }
+
+    /// Updates this cat's project name and the text shown on its label.
+    func rename(to newName: String) {
+        projectName = newName
+        labelField.stringValue = newName
+    }
 
     /// Sets (or clears, with nil) the fixed spot this cat should walk to and hold
     /// while "왼쪽 정렬" mode is on. Ignored while that mode is off.

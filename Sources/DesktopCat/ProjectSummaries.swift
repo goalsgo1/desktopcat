@@ -49,4 +49,13 @@ enum ProjectSummaries {
         let fileURL = directoryURL.appendingPathComponent("\(projectName).txt")
         try? text.write(to: fileURL, atomically: true, encoding: .utf8)
     }
+
+    /// Moves <oldName>.txt to <newName>.txt, if the old file exists.
+    static func rename(_ oldName: String, to newName: String) {
+        guard oldName != newName else { return }
+        let oldURL = directoryURL.appendingPathComponent("\(oldName).txt")
+        let newURL = directoryURL.appendingPathComponent("\(newName).txt")
+        try? FileManager.default.removeItem(at: newURL) // clear any stale file at the destination first
+        try? FileManager.default.moveItem(at: oldURL, to: newURL)
+    }
 }
