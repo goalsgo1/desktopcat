@@ -28,7 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onToggleAligned: { [weak self] enabled in self?.applyAlignment(enabled: enabled) },
             onShowCatList: { [weak self] in self?.catSelectionPanel.toggle() },
             onEditSummary: { [weak self] name in self?.summaryEditPanel.open(for: name) },
-            onToggleSendToBack: { [weak self] enabled in self?.applySendToBack(enabled: enabled) }
+            onToggleSendToBack: { [weak self] enabled in self?.applySendToBack(enabled: enabled) },
+            onUninstall: { [weak self] in self?.performUninstall() }
         )
 
         catSelectionPanel = CatSelectionPanel(
@@ -176,6 +177,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quit() {
+        NSApp.terminate(nil)
+    }
+
+    /// Moves ~/.desktopcat and the running .app bundle to the Trash, then quits.
+    /// Refuses to do anything unless actually running from an installed .app —
+    /// guards against nuking a raw dev build's containing folder while testing.
+    private func performUninstall() {
+        let bundleURL = Bundle.main.bundleURL
+        guard bundleURL.pathExtension == "app" else {
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = "삭제할 수 없음"
+            alert.informativeText = "정식 설치된 .app에서 실행 중일 때만 이 기능을 쓸 수 있습니다."
+            alert.runModal()
+            return
+        }
+
+        let fm = FileManager.default
+        let configDir = fm.homeDirectoryForCurrentUser.appendingPathComponent(".desktopcat")
+        try? fm.trashItem(at: configDir, resultingItemURL: nil)
+        try? fm.trashItem(at: bundleURL, resultingItemURL: nil)
         NSApp.terminate(nil)
     }
 }
