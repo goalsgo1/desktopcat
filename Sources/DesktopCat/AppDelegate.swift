@@ -1,6 +1,12 @@
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Each cat is its own NSWindow driven by a 30fps Timer, so an unbounded
+    /// roster could quietly tank performance. 100 is far beyond any real
+    /// project count and still lays out cleanly with the column-wrapping
+    /// left-alignment layout, so it's a safety net rather than a real limit.
+    private let maxCatCount = 100
+
     private var roster: [String] = []
     private var catWindows: [CatWindow] = []
     private var statusItem: NSStatusItem!
@@ -13,6 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.saveSummaryEdit(oldName: oldName, newName: newName, text: text)
         })
         roster = ProjectRoster.load()
+        if roster.count > maxCatCount {
+            roster = Array(roster.prefix(maxCatCount))
+            ProjectRoster.save(roster)
+        }
         roster.forEach { _ = ProjectSummaries.summary(for: $0) } // pre-create summary files so they're editable right away
         let positions = spawnPositions(count: roster.count)
 
@@ -56,6 +66,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func addProject(_ name: String) {
         guard !roster.contains(name) else { return }
+        guard roster.count < maxCatCount else {
+            showAlert(title: "고양이가 너무 많습니다", message: "최대 \(maxCatCount)마리까지만 추가할 수 있습니다.")
+            return
+        }
         roster.append(name)
         ProjectRoster.save(roster)
         _ = ProjectSummaries.summary(for: name) // pre-create its summary file
