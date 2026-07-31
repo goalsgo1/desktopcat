@@ -43,6 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
     }
 
+    /// Without this, AppKit quits the whole app the moment the last visible
+    /// window closes (e.g. removing the only remaining cat) — this is a
+    /// menu-bar-driven background app, so closing windows should never quit it.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
+
     private func addProject(_ name: String) {
         guard !roster.contains(name) else { return }
         roster.append(name)

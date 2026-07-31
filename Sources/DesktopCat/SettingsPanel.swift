@@ -62,17 +62,17 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         scrollView.documentView = tableView
         container.addSubview(scrollView)
 
-        nameField.frame = NSRect(x: 16, y: 190, width: 140, height: 24)
+        nameField.frame = NSRect(x: 16, y: 190, width: 130, height: 24)
         nameField.placeholderString = "프로젝트 이름"
         container.addSubview(nameField)
 
         let addButton = NSButton(title: "추가", target: nil, action: nil)
-        addButton.frame = NSRect(x: 164, y: 190, width: 50, height: 24)
+        addButton.frame = NSRect(x: 154, y: 190, width: 50, height: 24)
         addButton.bezelStyle = .rounded
         container.addSubview(addButton)
 
         let removeButton = NSButton(title: "제거", target: nil, action: nil)
-        removeButton.frame = NSRect(x: 220, y: 190, width: 44, height: 24)
+        removeButton.frame = NSRect(x: 210, y: 190, width: 54, height: 24)
         removeButton.bezelStyle = .rounded
         container.addSubview(removeButton)
 

@@ -59,11 +59,13 @@ final class CatWindow {
                            width: windowWidth,
                            height: windowHeight)
         window = NSWindow(contentRect: rect, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isReleasedWhenClosed = false // we hold the only strong reference; avoid AppKit double-releasing on close()
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = false
         window.level = CatWindow.windowLevel()
         window.ignoresMouseEvents = false // must receive clicks so the cat is tappable
+        window.animationBehavior = .none // avoid AppKit's implicit close/order animations entirely
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
 
         let container = ClickCatchingView(frame: NSRect(origin: .zero, size: rect.size))
@@ -117,8 +119,7 @@ final class CatWindow {
     /// Tears the cat down entirely: stops its timer and closes its window.
     func close() {
         stopRoaming()
-        window.orderOut(nil)
-        window.close()
+        window.close() // orderOut + close together raced with window-close animation teardown and crashed
     }
 
     /// Re-reads AppSettings.shared.sendToBackEnabled and updates this window's level.
