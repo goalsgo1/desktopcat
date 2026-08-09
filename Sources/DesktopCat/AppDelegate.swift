@@ -8,11 +8,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let maxCatCount = 100
 
     private var roster: [String] = []
+    private var projectStatuses: [String: CatStatus] = [:]
     private var catWindows: [CatWindow] = []
+    private var catScale: CGFloat = CatScaleStore.defaultScale
     private var statusItem: NSStatusItem!
     private var settingsPanel: SettingsPanel!
     private var catSelectionPanel: CatSelectionPanel!
     private var summaryEditPanel: SummaryEditPanel!
+    private var midnightCheckTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         summaryEditPanel = SummaryEditPanel(onSave: { [weak self] oldName, newName, text in
@@ -23,11 +26,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             roster = Array(roster.prefix(maxCatCount))
             ProjectRoster.save(roster)
         }
+        projectStatuses = ProjectStatus.load()
+        catScale = CatScaleStore.load()
         roster.forEach { _ = ProjectSummaries.summary(for: $0) } // pre-create summary files so they're editable right away
         let positions = spawnPositions(count: roster.count)
 
         catWindows = zip(roster, positions).map { name, position in
-            let cat = CatWindow(label: name, initialPosition: position)
+            let cat = CatWindow(label: name, initialPosition: position, status: projectStatuses[name] ?? .white, scale: catScale)
             cat.startRoaming()
             return cat
         }
@@ -35,12 +40,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settingsPanel = SettingsPanel(
             catCount: catWindows.count,
             projects: roster,
+            projectStatuses: projectStatuses,
+            catScale: catScale,
             onAdd: { [weak self] name in self?.addProject(name) },
             onRemove: { [weak self] name in self?.removeProject(name) },
             onToggleAligned: { [weak self] enabled in self?.applyAlignment(enabled: enabled) },
             onShowCatList: { [weak self] in self?.catSelectionPanel.toggle() },
             onEditSummary: { [weak self] name in self?.summaryEditPanel.open(for: name) },
             onToggleSendToBack: { [weak self] enabled in self?.applySendToBack(enabled: enabled) },
+            onStatusChange: { [weak self] name, status in self?.setStatus(name: name, status: status) },
+            onCatScaleChange: { [weak self] scale in self?.applyCatScale(scale) },
             onUninstall: { [weak self] in self?.performUninstall() },
             onCheckForUpdates: { [weak self] in self?.checkForUpdates() }
         )
@@ -55,6 +64,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.action = #selector(statusItemClicked)
         statusItem.button?.target = self
         statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+
+        let cached = LatestVersionStore.load()
+        settingsPanel.updateLatestVersion(cached?.version)
+        if cached == nil || cached?.checkedDay != LatestVersionStore.todayString() {
+            performDailyVersionCheck() // never checked, or last check was a previous calendar day
+        }
+        scheduleNextMidnightCheck()
     }
 
     /// Without this, AppKit quits the whole app the moment the last visible
@@ -75,7 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = ProjectSummaries.summary(for: name) // pre-create its summary file
 
         let position = spawnPositions(count: 1).first ?? .zero
-        let cat = CatWindow(label: name, initialPosition: position)
+        let cat = CatWindow(label: name, initialPosition: position, scale: catScale)
         cat.applyWindowLevel()
         cat.startRoaming()
         catWindows.append(cat)
@@ -88,11 +104,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         roster.remove(at: rosterIndex)
         ProjectRoster.save(roster)
 
+        if projectStatuses.removeValue(forKey: name) != nil {
+            ProjectStatus.save(projectStatuses)
+        }
+
         if let catIndex = catWindows.firstIndex(where: { $0.name == name }) {
             catWindows[catIndex].close()
             catWindows.remove(at: catIndex)
         }
 
+        refreshUI()
+    }
+
+    /// Changes a project's fur color from the settings panel picker, persisting
+    /// the choice so it survives app restarts.
+    private func setStatus(name: String, status: CatStatus) {
+        projectStatuses[name] = status
+        ProjectStatus.save(projectStatuses)
+        catWindows.first(where: { $0.name == name })?.setStatus(status)
         refreshUI()
     }
 
@@ -119,6 +148,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if AppSettings.shared.roamingExceptions.remove(oldName) != nil {
             AppSettings.shared.roamingExceptions.insert(newName)
         }
+        if let status = projectStatuses.removeValue(forKey: oldName) {
+            projectStatuses[newName] = status
+            ProjectStatus.save(projectStatuses)
+        }
         ProjectSummaries.rename(oldName, to: newName)
         ProjectSummaries.write(text, for: newName)
         refreshUI()
@@ -126,7 +159,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshUI() {
         statusItem.button?.title = "🐱×\(catWindows.count)"
-        settingsPanel.updateProjects(roster, catCount: catWindows.count)
+        settingsPanel.updateProjects(roster, projectStatuses: projectStatuses, catCount: catWindows.count)
         catSelectionPanel.updateProjects(roster)
         if AppSettings.shared.alignedEnabled {
             applyAlignment(enabled: true) // reflow the line-up so it stays gap-free after add/remove
@@ -143,6 +176,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if AppSettings.shared.alignedEnabled {
             applyAlignment(enabled: true) // recompute the line-up excluding the now-free cat
+        }
+    }
+
+    /// Changes every cat's sprite size (0.5x/1x/1.5x/2x). CatWindow bakes
+    /// spriteSize/windowWidth into its layout at init time, so an in-place resize
+    /// isn't practical — instead every window is closed and a fresh one spawned
+    /// at the exact same position, name, and status color. If "왼쪽 정렬" is on,
+    /// the line-up is recomputed afterward so row/column spacing matches the new size.
+    private func applyCatScale(_ scale: CGFloat) {
+        guard scale != catScale else { return }
+        catScale = scale
+        CatScaleStore.save(scale)
+
+        catWindows = catWindows.map { old in
+            let cat = CatWindow(label: old.name, initialPosition: old.currentPosition,
+                                 status: projectStatuses[old.name] ?? .white, scale: scale)
+            cat.applyWindowLevel()
+            old.close()
+            cat.startRoaming()
+            return cat
+        }
+
+        if AppSettings.shared.alignedEnabled {
+            applyAlignment(enabled: true) // recompute the line-up for the new size
         }
     }
 
@@ -177,24 +234,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// in a column and wrapping into a new column further right once a column runs
     /// out of vertical room. Row count per column is derived from actual screen
     /// height (not a fixed number), so it adapts to whatever display is in use and
-    /// never overflows off-screen no matter how many cats are lined up.
+    /// never overflows off-screen no matter how many cats are lined up. Row/column
+    /// spacing scales with catScale so bigger sprites don't overlap when lined up.
+    ///
+    /// Uses `visibleFrame` (not `frame`) so the column sits entirely above the Dock
+    /// and below the menu bar — `frame` covers the whole physical screen including
+    /// the strip the Dock occupies, which is what let the bottom rows get hidden
+    /// behind it. Top/bottom margins scale with the sprite so the label strip below
+    /// each cat (which extends further past `position.y` at bigger sizes) also
+    /// always clears the Dock, and the last row is hard-clamped to the safe line as
+    /// a backstop against the row-count math's usual one-row rounding overshoot.
     private func alignmentSlots(count: Int) -> [CGPoint] {
         guard count > 0 else { return [] }
-        let bounds = NSScreen.screens.reduce(CGRect.null) { $0.union($1.frame) }
+        let bounds = NSScreen.screens.reduce(CGRect.null) { $0.union($1.visibleFrame) }
         let marginX: CGFloat = 120
-        let columnSpacing: CGFloat = 130
-        let rowSpacing: CGFloat = 90
-        let topMargin: CGFloat = 60
-        let bottomMargin: CGFloat = 60
+        let columnSpacing: CGFloat = 130 * catScale
+        let rowSpacing: CGFloat = 90 * catScale
+        let spriteHalf = CatWindow.spriteSize(forScale: catScale) / 2
+        let topMargin: CGFloat = 20 + spriteHalf
+        let bottomMargin: CGFloat = 20 + spriteHalf + CatWindow.labelHeight
         let usableHeight = max(bounds.height - topMargin - bottomMargin, rowSpacing)
         let rowsPerColumn = max(1, Int(usableHeight / rowSpacing) + 1)
         let startY = bounds.maxY - topMargin
+        let minSafeY = bounds.minY + bottomMargin
 
         return (0..<count).map { i in
             let column = i / rowsPerColumn
             let row = i % rowsPerColumn
             let x = bounds.minX + marginX + CGFloat(column) * columnSpacing
-            let y = startY - CGFloat(row) * rowSpacing
+            let y = max(startY - CGFloat(row) * rowSpacing, minSafeY)
             return CGPoint(x: x, y: y)
         }
     }
@@ -274,6 +342,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         try? fm.trashItem(at: configDir, resultingItemURL: nil)
         try? fm.trashItem(at: bundleURL, resultingItemURL: nil)
         NSApp.terminate(nil)
+    }
+
+    // MARK: - Daily version check (background, silent — just updates the label)
+
+    /// Schedules a one-shot timer for the next local midnight, which performs
+    /// the check and then reschedules itself for the following midnight.
+    /// Recomputing the delay each time (instead of a fixed 24h repeat) keeps
+    /// this correct across DST transitions.
+    private func scheduleNextMidnightCheck() {
+        midnightCheckTimer?.invalidate()
+        let calendar = Calendar.current
+        let now = Date()
+        guard let nextMidnight = calendar.nextDate(after: now, matching: DateComponents(hour: 0, minute: 0, second: 0),
+                                                     matchingPolicy: .nextTime) else { return }
+        let delay = nextMidnight.timeIntervalSince(now)
+        midnightCheckTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
+            self?.performDailyVersionCheck()
+            self?.scheduleNextMidnightCheck()
+        }
+    }
+
+    /// Silent background check — just caches+displays the latest release version.
+    /// Never shows an alert or an install prompt; that's what the "업데이트 확인"
+    /// button (checkForUpdates) is for.
+    private func performDailyVersionCheck() {
+        UpdateChecker.fetchLatest { [weak self] result in
+            guard let self, case .success(let release) = result else { return }
+            LatestVersionStore.save(version: release.version, checkedDay: LatestVersionStore.todayString())
+            self.settingsPanel.updateLatestVersion(release.version)
+        }
     }
 
     // MARK: - Update checking

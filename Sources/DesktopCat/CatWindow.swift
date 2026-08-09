@@ -27,9 +27,16 @@ final class CatWindow {
     private let labelField: NSTextField
     private var timer: Timer?
 
-    private let spriteSize: CGFloat = 64
-    private let labelHeight: CGFloat = 20
-    private let windowWidth: CGFloat = 180
+    /// Base (1x) sprite size and the name-label strip height below it — exposed
+    /// so AppDelegate's alignment math can reserve exactly enough room per cat
+    /// (at whatever scale) without duplicating these numbers.
+    static let baseSpriteSize: CGFloat = 64
+    static let labelHeight: CGFloat = 20
+    static func spriteSize(forScale scale: CGFloat) -> CGFloat { baseSpriteSize * scale }
+
+    private let spriteSize: CGFloat
+    private let labelHeight: CGFloat = CatWindow.labelHeight
+    private let windowWidth: CGFloat
 
     private let chaseTriggerRadius: CGFloat = 220
     private let chaseGiveUpRadius: CGFloat = 320
@@ -48,9 +55,13 @@ final class CatWindow {
     private var showTailFlick = false
     private var alignedTarget: CGPoint?
     private var projectName: String
+    private var status: CatStatus
 
-    init(label: String, initialPosition: CGPoint) {
+    init(label: String, initialPosition: CGPoint, status: CatStatus = .white, scale: CGFloat = 1.0) {
         projectName = label
+        self.status = status
+        spriteSize = CatWindow.spriteSize(forScale: scale)
+        windowWidth = max(180, spriteSize + 56) // keep a comfortable label/margin even at 2x
         position = initialPosition
 
         let windowHeight = spriteSize + labelHeight
@@ -97,7 +108,7 @@ final class CatWindow {
 
     func startRoaming() {
         idleUntil = now() + Double.random(in: 1...3)
-        catView.setSprite(CatSprite.image(for: .rest, flip: facingLeft))
+        catView.setSprite(CatSprite.image(for: .rest, flip: facingLeft, status: status))
         timer = Timer.scheduledTimer(withTimeInterval: tickInterval, repeats: true) { [weak self] _ in
             self?.tick()
         }
@@ -110,10 +121,20 @@ final class CatWindow {
 
     var name: String { projectName }
 
+    /// Current on-screen position — read by AppDelegate when rebuilding every
+    /// cat at a new scale, so each one respawns exactly where it was standing.
+    var currentPosition: CGPoint { position }
+
     /// Updates this cat's project name and the text shown on its label.
     func rename(to newName: String) {
         projectName = newName
         labelField.stringValue = newName
+    }
+
+    /// Changes this cat's status color. Takes effect on the next pose update
+    /// (within one tick), no need to force-redraw here.
+    func setStatus(_ newStatus: CatStatus) {
+        status = newStatus
     }
 
     /// Sets (or clears, with nil) the fixed spot this cat should walk to and hold
@@ -252,7 +273,7 @@ final class CatWindow {
         let pose: CatSprite.Pose = state == .idle
             ? (showTailFlick ? .blink : .rest)
             : (showTailFlick ? .tailFlick : .rest)
-        catView.setSprite(CatSprite.image(for: pose, flip: facingLeft))
+        catView.setSprite(CatSprite.image(for: pose, flip: facingLeft, status: status))
     }
 
     private func presentSummary() {
@@ -260,7 +281,7 @@ final class CatWindow {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = projectName
+        alert.messageText = "\(projectName)  \(status.emoji) \(status.label)"
         alert.informativeText = ProjectSummaries.summary(for: projectName)
         alert.addButton(withTitle: "닫기")
         alert.runModal()

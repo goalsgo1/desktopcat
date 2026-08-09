@@ -9,60 +9,80 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     private let tableView = NSTableView()
     private let nameField = NSTextField()
     private var projects: [String]
+    private var projectStatuses: [String: CatStatus]
     private let onAdd: (String) -> Void
     private let onRemove: (String) -> Void
     private let onToggleAligned: (Bool) -> Void
     private let onShowCatList: () -> Void
     private let onEditSummary: (String) -> Void
     private let onToggleSendToBack: (Bool) -> Void
+    private let onStatusChange: (String, CatStatus) -> Void
+    private let onCatScaleChange: (CGFloat) -> Void
     private let onUninstall: () -> Void
     private let onCheckForUpdates: () -> Void
     private let listButton: NSButton
+    private let infoPanel = InfoPanel()
+    private let latestVersionLabel: NSTextField
 
     init(catCount: Int,
          projects: [String],
+         projectStatuses: [String: CatStatus],
+         catScale: CGFloat,
          onAdd: @escaping (String) -> Void,
          onRemove: @escaping (String) -> Void,
          onToggleAligned: @escaping (Bool) -> Void,
          onShowCatList: @escaping () -> Void,
          onEditSummary: @escaping (String) -> Void,
          onToggleSendToBack: @escaping (Bool) -> Void,
+         onStatusChange: @escaping (String, CatStatus) -> Void,
+         onCatScaleChange: @escaping (CGFloat) -> Void,
          onUninstall: @escaping () -> Void,
          onCheckForUpdates: @escaping () -> Void) {
         self.projects = projects
+        self.projectStatuses = projectStatuses
         self.onAdd = onAdd
         self.onRemove = onRemove
         self.onToggleAligned = onToggleAligned
         self.onShowCatList = onShowCatList
         self.onEditSummary = onEditSummary
         self.onToggleSendToBack = onToggleSendToBack
+        self.onStatusChange = onStatusChange
+        self.onCatScaleChange = onCatScaleChange
         self.onUninstall = onUninstall
         self.onCheckForUpdates = onCheckForUpdates
         listButton = NSButton(title: "목록 보기", target: nil, action: nil)
 
         let width: CGFloat = 280
-        let height: CGFloat = 456
+        let height: CGFloat = 532
         let rect = NSRect(x: 0, y: 0, width: width, height: height)
         window = NSWindow(contentRect: rect, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "DesktopCat 설정"
         window.isReleasedWhenClosed = false
         window.level = .floating
 
-        statusLabel = NSTextField(labelWithString: "고양이 \(catCount)마리 실행 중")
-        statusLabel.frame = NSRect(x: 16, y: 420, width: 170, height: 20)
-        statusLabel.textColor = .secondaryLabelColor
-
         let container = NSView(frame: NSRect(origin: .zero, size: rect.size))
+
+        // First-time users see a grid of unlabeled buttons and colored cats with
+        // no context — this is the one thing that explains all of it, so it goes
+        // at the very top where it's impossible to miss.
+        let infoButton = NSButton(title: "ℹ️ 사용법 보기", target: nil, action: nil)
+        infoButton.frame = NSRect(x: 16, y: 496, width: 248, height: 28)
+        infoButton.bezelStyle = .rounded
+        container.addSubview(infoButton)
+
+        statusLabel = NSTextField(labelWithString: "고양이 \(catCount)마리 실행 중")
+        statusLabel.frame = NSRect(x: 16, y: 460, width: 170, height: 20)
+        statusLabel.textColor = .secondaryLabelColor
         container.addSubview(statusLabel)
 
         let versionLabel = NSTextField(labelWithString: "v\(UpdateChecker.currentVersion())")
-        versionLabel.frame = NSRect(x: 192, y: 420, width: 72, height: 20)
+        versionLabel.frame = NSRect(x: 192, y: 460, width: 72, height: 20)
         versionLabel.alignment = .right
         versionLabel.textColor = .tertiaryLabelColor
         versionLabel.font = .systemFont(ofSize: 11)
         container.addSubview(versionLabel)
 
-        let scrollView = NSScrollView(frame: NSRect(x: 16, y: 300, width: 248, height: 110))
+        let scrollView = NSScrollView(frame: NSRect(x: 16, y: 340, width: 248, height: 110))
         scrollView.hasVerticalScroller = true
         scrollView.borderType = .bezelBorder
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name"))
@@ -75,41 +95,55 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         scrollView.documentView = tableView
         container.addSubview(scrollView)
 
-        nameField.frame = NSRect(x: 16, y: 266, width: 130, height: 24)
+        nameField.frame = NSRect(x: 16, y: 306, width: 130, height: 24)
         nameField.placeholderString = "프로젝트 이름"
         container.addSubview(nameField)
 
         let addButton = NSButton(title: "추가", target: nil, action: nil)
-        addButton.frame = NSRect(x: 154, y: 266, width: 50, height: 24)
+        addButton.frame = NSRect(x: 154, y: 306, width: 50, height: 24)
         addButton.bezelStyle = .rounded
         container.addSubview(addButton)
 
         let removeButton = NSButton(title: "제거", target: nil, action: nil)
-        removeButton.frame = NSRect(x: 210, y: 266, width: 54, height: 24)
+        removeButton.frame = NSRect(x: 210, y: 306, width: 54, height: 24)
         removeButton.bezelStyle = .rounded
         container.addSubview(removeButton)
 
         let chaseCheckbox = NSButton(checkboxWithTitle: "마우스 추격", target: nil, action: nil)
-        chaseCheckbox.frame = NSRect(x: 16, y: 232, width: 248, height: 24)
+        chaseCheckbox.frame = NSRect(x: 16, y: 272, width: 248, height: 24)
         chaseCheckbox.state = AppSettings.shared.chaseEnabled ? .on : .off
         container.addSubview(chaseCheckbox)
 
         let clickCheckbox = NSButton(checkboxWithTitle: "클릭 시 진행상황 요약 보기",
                                       target: nil, action: nil)
-        clickCheckbox.frame = NSRect(x: 16, y: 198, width: 248, height: 24)
+        clickCheckbox.frame = NSRect(x: 16, y: 238, width: 248, height: 24)
         clickCheckbox.state = AppSettings.shared.clickSummaryEnabled ? .on : .off
         container.addSubview(clickCheckbox)
 
         let alignCheckbox = NSButton(checkboxWithTitle: "왼쪽 정렬 (고정)", target: nil, action: nil)
-        alignCheckbox.frame = NSRect(x: 16, y: 164, width: 150, height: 24)
+        alignCheckbox.frame = NSRect(x: 16, y: 204, width: 150, height: 24)
         alignCheckbox.state = AppSettings.shared.alignedEnabled ? .on : .off
         container.addSubview(alignCheckbox)
 
-        listButton.frame = NSRect(x: 172, y: 163, width: 92, height: 22)
+        listButton.frame = NSRect(x: 172, y: 203, width: 92, height: 22)
         listButton.bezelStyle = .rounded
         listButton.controlSize = .small
         listButton.isHidden = !AppSettings.shared.alignedEnabled
         container.addSubview(listButton)
+
+        let sizeLabel = NSTextField(labelWithString: "고양이 크기")
+        sizeLabel.frame = NSRect(x: 16, y: 164, width: 80, height: 24)
+        sizeLabel.font = .systemFont(ofSize: 12)
+        container.addSubview(sizeLabel)
+
+        let sizeControl = NSSegmentedControl(labels: ["0.5x", "1x", "1.5x", "2x"],
+                                              trackingMode: .selectOne, target: nil, action: nil)
+        sizeControl.frame = NSRect(x: 100, y: 164, width: 164, height: 24)
+        sizeControl.controlSize = .small
+        if let index = CatScaleStore.allowedScales.firstIndex(of: catScale) {
+            sizeControl.selectedSegment = index
+        }
+        container.addSubview(sizeControl)
 
         let sendToBackCheckbox = NSButton(checkboxWithTitle: "화면 맨 뒤로 이동", target: nil, action: nil)
         sendToBackCheckbox.frame = NSRect(x: 16, y: 130, width: 248, height: 24)
@@ -117,9 +151,20 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         container.addSubview(sendToBackCheckbox)
 
         let updateButton = NSButton(title: "업데이트 확인", target: nil, action: nil)
-        updateButton.frame = NSRect(x: 16, y: 92, width: 248, height: 28)
+        updateButton.frame = NSRect(x: 16, y: 92, width: 168, height: 28)
         updateButton.bezelStyle = .rounded
         container.addSubview(updateButton)
+
+        // Filled in by AppDelegate from a once-a-day background check (and from
+        // the cached value on launch) — not tied to pressing the button above.
+        let latest = NSTextField(labelWithString: "최신: -")
+        latest.frame = NSRect(x: 190, y: 98, width: 74, height: 16)
+        latest.alignment = .right
+        latest.font = .systemFont(ofSize: 10)
+        latest.textColor = .secondaryLabelColor
+        latest.lineBreakMode = .byTruncatingTail
+        container.addSubview(latest)
+        latestVersionLabel = latest
 
         let quitButton = NSButton(title: "Quit Desktop Cat", target: nil, action: nil)
         quitButton.frame = NSRect(x: 16, y: 54, width: 248, height: 28)
@@ -138,6 +183,9 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         window.contentView = container
 
         super.init()
+
+        infoButton.target = self
+        infoButton.action = #selector(infoButtonTapped)
 
         tableView.dataSource = self
         tableView.delegate = self
@@ -160,6 +208,9 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         alignCheckbox.target = self
         alignCheckbox.action = #selector(toggleAligned(_:))
 
+        sizeControl.target = self
+        sizeControl.action = #selector(sizeControlChanged(_:))
+
         listButton.target = self
         listButton.action = #selector(showCatList)
 
@@ -176,6 +227,12 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         uninstallButton.action = #selector(uninstallTapped)
     }
 
+    /// Called by AppDelegate after loading the cached value on launch and after
+    /// each once-a-day background check. `nil` means no version known yet.
+    func updateLatestVersion(_ version: String?) {
+        latestVersionLabel.stringValue = "최신: \(version.map { "v\($0)" } ?? "-")"
+    }
+
     func toggle() {
         if window.isVisible {
             window.orderOut(nil)
@@ -186,11 +243,17 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         }
     }
 
-    /// Called by AppDelegate after the roster actually changes (cat spawned/closed).
-    func updateProjects(_ names: [String], catCount: Int) {
+    /// Called by AppDelegate after the roster actually changes (cat spawned/closed)
+    /// or after a project's status color is changed.
+    func updateProjects(_ names: [String], projectStatuses: [String: CatStatus], catCount: Int) {
         projects = names
+        self.projectStatuses = projectStatuses
         statusLabel.stringValue = "고양이 \(catCount)마리 실행 중"
         tableView.reloadData()
+    }
+
+    @objc private func infoButtonTapped() {
+        infoPanel.toggle()
     }
 
     @objc private func addButtonTapped() {
@@ -221,6 +284,12 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         onToggleAligned(enabled)
     }
 
+    @objc private func sizeControlChanged(_ sender: NSSegmentedControl) {
+        let scales = CatScaleStore.allowedScales
+        guard sender.selectedSegment >= 0 && sender.selectedSegment < scales.count else { return }
+        onCatScaleChange(scales[sender.selectedSegment])
+    }
+
     @objc private func showCatList() {
         onShowCatList()
     }
@@ -236,6 +305,13 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     @objc private func editButtonTapped(_ sender: NSButton) {
         guard sender.tag >= 0 && sender.tag < projects.count else { return }
         onEditSummary(projects[sender.tag])
+    }
+
+    @objc private func statusPopUpChanged(_ sender: NSPopUpButton) {
+        guard sender.tag >= 0 && sender.tag < projects.count else { return }
+        let statuses = CatStatus.allCases
+        guard sender.indexOfSelectedItem >= 0 && sender.indexOfSelectedItem < statuses.count else { return }
+        onStatusChange(projects[sender.tag], statuses[sender.indexOfSelectedItem])
     }
 
     @objc private func quit() {
@@ -269,9 +345,26 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         let rowView = NSView(frame: NSRect(x: 0, y: 0, width: width, height: 22))
 
         let label = NSTextField(labelWithString: name)
-        label.frame = NSRect(x: 4, y: 2, width: width - 58, height: 18)
+        label.frame = NSRect(x: 4, y: 2, width: width - 106, height: 18)
         label.lineBreakMode = .byTruncatingTail
         rowView.addSubview(label)
+
+        // Status color picker (emoji-only, compact): purely cosmetic (tints the
+        // cat's fur) — doesn't change its roaming/chase behavior, just flags its
+        // state at a glance. Hover/click shows the full Korean label via the item title.
+        let statusPopUp = NSPopUpButton(frame: NSRect(x: width - 100, y: 1, width: 50, height: 20), pullsDown: false)
+        statusPopUp.controlSize = .small
+        statusPopUp.font = .systemFont(ofSize: 11)
+        for catStatus in CatStatus.allCases {
+            statusPopUp.addItem(withTitle: catStatus.emoji)
+            statusPopUp.lastItem?.toolTip = catStatus.label
+        }
+        let current = projectStatuses[name] ?? .white
+        statusPopUp.selectItem(at: CatStatus.allCases.firstIndex(of: current) ?? 0)
+        statusPopUp.target = self
+        statusPopUp.action = #selector(statusPopUpChanged(_:))
+        statusPopUp.tag = row
+        rowView.addSubview(statusPopUp)
 
         let editButton = NSButton(title: "편집", target: self, action: #selector(editButtonTapped(_:)))
         editButton.frame = NSRect(x: width - 50, y: 0, width: 46, height: 22)
