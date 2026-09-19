@@ -20,6 +20,7 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     private let onCatScaleChange: (CGFloat) -> Void
     private let onUninstall: () -> Void
     private let onCheckForUpdates: () -> Void
+    private let onRestart: () -> Void
     private let listButton: NSButton
     private let infoPanel = InfoPanel()
     private let latestVersionLabel: NSTextField
@@ -37,7 +38,8 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
          onStatusChange: @escaping (String, CatStatus) -> Void,
          onCatScaleChange: @escaping (CGFloat) -> Void,
          onUninstall: @escaping () -> Void,
-         onCheckForUpdates: @escaping () -> Void) {
+         onCheckForUpdates: @escaping () -> Void,
+         onRestart: @escaping () -> Void) {
         self.projects = projects
         self.projectStatuses = projectStatuses
         self.onAdd = onAdd
@@ -50,10 +52,11 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         self.onCatScaleChange = onCatScaleChange
         self.onUninstall = onUninstall
         self.onCheckForUpdates = onCheckForUpdates
+        self.onRestart = onRestart
         listButton = NSButton(title: "목록 보기", target: nil, action: nil)
 
         let width: CGFloat = 280
-        let height: CGFloat = 532
+        let height: CGFloat = 570
         let rect = NSRect(x: 0, y: 0, width: width, height: height)
         window = NSWindow(contentRect: rect, styleMask: [.titled, .closable], backing: .buffered, defer: false)
         window.title = "DesktopCat 설정"
@@ -66,23 +69,23 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         // no context — this is the one thing that explains all of it, so it goes
         // at the very top where it's impossible to miss.
         let infoButton = NSButton(title: "ℹ️ 사용법 보기", target: nil, action: nil)
-        infoButton.frame = NSRect(x: 16, y: 496, width: 248, height: 28)
+        infoButton.frame = NSRect(x: 16, y: 534, width: 248, height: 28)
         infoButton.bezelStyle = .rounded
         container.addSubview(infoButton)
 
         statusLabel = NSTextField(labelWithString: "고양이 \(catCount)마리 실행 중")
-        statusLabel.frame = NSRect(x: 16, y: 460, width: 170, height: 20)
+        statusLabel.frame = NSRect(x: 16, y: 498, width: 170, height: 20)
         statusLabel.textColor = .secondaryLabelColor
         container.addSubview(statusLabel)
 
         let versionLabel = NSTextField(labelWithString: "v\(UpdateChecker.currentVersion())")
-        versionLabel.frame = NSRect(x: 192, y: 460, width: 72, height: 20)
+        versionLabel.frame = NSRect(x: 192, y: 498, width: 72, height: 20)
         versionLabel.alignment = .right
         versionLabel.textColor = .tertiaryLabelColor
         versionLabel.font = .systemFont(ofSize: 11)
         container.addSubview(versionLabel)
 
-        let scrollView = NSScrollView(frame: NSRect(x: 16, y: 340, width: 248, height: 110))
+        let scrollView = NSScrollView(frame: NSRect(x: 16, y: 378, width: 248, height: 110))
         scrollView.hasVerticalScroller = true
         scrollView.borderType = .bezelBorder
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name"))
@@ -95,50 +98,50 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         scrollView.documentView = tableView
         container.addSubview(scrollView)
 
-        nameField.frame = NSRect(x: 16, y: 306, width: 130, height: 24)
+        nameField.frame = NSRect(x: 16, y: 344, width: 130, height: 24)
         nameField.placeholderString = "프로젝트 이름"
         container.addSubview(nameField)
 
         let addButton = NSButton(title: "추가", target: nil, action: nil)
-        addButton.frame = NSRect(x: 154, y: 306, width: 50, height: 24)
+        addButton.frame = NSRect(x: 154, y: 344, width: 50, height: 24)
         addButton.bezelStyle = .rounded
         container.addSubview(addButton)
 
         let removeButton = NSButton(title: "제거", target: nil, action: nil)
-        removeButton.frame = NSRect(x: 210, y: 306, width: 54, height: 24)
+        removeButton.frame = NSRect(x: 210, y: 344, width: 54, height: 24)
         removeButton.bezelStyle = .rounded
         container.addSubview(removeButton)
 
         let chaseCheckbox = NSButton(checkboxWithTitle: "마우스 추격", target: nil, action: nil)
-        chaseCheckbox.frame = NSRect(x: 16, y: 272, width: 248, height: 24)
+        chaseCheckbox.frame = NSRect(x: 16, y: 310, width: 248, height: 24)
         chaseCheckbox.state = AppSettings.shared.chaseEnabled ? .on : .off
         container.addSubview(chaseCheckbox)
 
         let clickCheckbox = NSButton(checkboxWithTitle: "클릭 시 진행상황 요약 보기",
                                       target: nil, action: nil)
-        clickCheckbox.frame = NSRect(x: 16, y: 238, width: 248, height: 24)
+        clickCheckbox.frame = NSRect(x: 16, y: 276, width: 248, height: 24)
         clickCheckbox.state = AppSettings.shared.clickSummaryEnabled ? .on : .off
         container.addSubview(clickCheckbox)
 
         let alignCheckbox = NSButton(checkboxWithTitle: "왼쪽 정렬 (고정)", target: nil, action: nil)
-        alignCheckbox.frame = NSRect(x: 16, y: 204, width: 150, height: 24)
+        alignCheckbox.frame = NSRect(x: 16, y: 242, width: 150, height: 24)
         alignCheckbox.state = AppSettings.shared.alignedEnabled ? .on : .off
         container.addSubview(alignCheckbox)
 
-        listButton.frame = NSRect(x: 172, y: 203, width: 92, height: 22)
+        listButton.frame = NSRect(x: 172, y: 241, width: 92, height: 22)
         listButton.bezelStyle = .rounded
         listButton.controlSize = .small
         listButton.isHidden = !AppSettings.shared.alignedEnabled
         container.addSubview(listButton)
 
         let sizeLabel = NSTextField(labelWithString: "고양이 크기")
-        sizeLabel.frame = NSRect(x: 16, y: 164, width: 80, height: 24)
+        sizeLabel.frame = NSRect(x: 16, y: 202, width: 80, height: 24)
         sizeLabel.font = .systemFont(ofSize: 12)
         container.addSubview(sizeLabel)
 
         let sizeControl = NSSegmentedControl(labels: ["0.5x", "1x", "1.5x", "2x"],
                                               trackingMode: .selectOne, target: nil, action: nil)
-        sizeControl.frame = NSRect(x: 100, y: 164, width: 164, height: 24)
+        sizeControl.frame = NSRect(x: 100, y: 202, width: 164, height: 24)
         sizeControl.controlSize = .small
         if let index = CatScaleStore.allowedScales.firstIndex(of: catScale) {
             sizeControl.selectedSegment = index
@@ -146,19 +149,19 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         container.addSubview(sizeControl)
 
         let sendToBackCheckbox = NSButton(checkboxWithTitle: "화면 맨 뒤로 이동", target: nil, action: nil)
-        sendToBackCheckbox.frame = NSRect(x: 16, y: 130, width: 248, height: 24)
+        sendToBackCheckbox.frame = NSRect(x: 16, y: 168, width: 248, height: 24)
         sendToBackCheckbox.state = AppSettings.shared.sendToBackEnabled ? .on : .off
         container.addSubview(sendToBackCheckbox)
 
         let updateButton = NSButton(title: "업데이트 확인", target: nil, action: nil)
-        updateButton.frame = NSRect(x: 16, y: 92, width: 168, height: 28)
+        updateButton.frame = NSRect(x: 16, y: 130, width: 168, height: 28)
         updateButton.bezelStyle = .rounded
         container.addSubview(updateButton)
 
         // Filled in by AppDelegate from a once-a-day background check (and from
         // the cached value on launch) — not tied to pressing the button above.
         let latest = NSTextField(labelWithString: "최신: -")
-        latest.frame = NSRect(x: 190, y: 98, width: 74, height: 16)
+        latest.frame = NSRect(x: 190, y: 136, width: 74, height: 16)
         latest.alignment = .right
         latest.font = .systemFont(ofSize: 10)
         latest.textColor = .secondaryLabelColor
@@ -166,8 +169,13 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         container.addSubview(latest)
         latestVersionLabel = latest
 
+        let restartButton = NSButton(title: "재시작", target: nil, action: nil)
+        restartButton.frame = NSRect(x: 16, y: 54, width: 248, height: 28)
+        restartButton.bezelStyle = .rounded
+        container.addSubview(restartButton)
+
         let quitButton = NSButton(title: "Quit Desktop Cat", target: nil, action: nil)
-        quitButton.frame = NSRect(x: 16, y: 54, width: 248, height: 28)
+        quitButton.frame = NSRect(x: 16, y: 92, width: 248, height: 28)
         quitButton.bezelStyle = .rounded
         container.addSubview(quitButton)
 
@@ -219,6 +227,9 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
 
         updateButton.target = self
         updateButton.action = #selector(checkForUpdatesTapped)
+
+        restartButton.target = self
+        restartButton.action = #selector(restartTapped)
 
         quitButton.target = self
         quitButton.action = #selector(quit)
@@ -316,6 +327,10 @@ final class SettingsPanel: NSObject, NSTableViewDataSource, NSTableViewDelegate 
 
     @objc private func quit() {
         NSApp.terminate(nil)
+    }
+
+    @objc private func restartTapped() {
+        onRestart()
     }
 
     @objc private func uninstallTapped() {

@@ -51,7 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             onStatusChange: { [weak self] name, status in self?.setStatus(name: name, status: status) },
             onCatScaleChange: { [weak self] scale in self?.applyCatScale(scale) },
             onUninstall: { [weak self] in self?.performUninstall() },
-            onCheckForUpdates: { [weak self] in self?.checkForUpdates() }
+            onCheckForUpdates: { [weak self] in self?.checkForUpdates() },
+            onRestart: { [weak self] in self?.performRestart() }
         )
 
         catSelectionPanel = CatSelectionPanel(
@@ -325,6 +326,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return nil
     }
 
+    /// Relaunches the app: opens a fresh instance via /usr/bin/open (an
+    /// independent process, same trick installUpdate uses to dodge NSWorkspace's
+    /// dedup-by-bundle-ID against the still-running instance) then quits this one.
+    private func performRestart() {
+        let openTask = Process()
+        openTask.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        // -n forces a brand-new instance. Without it, `open` on an app that's
+        // already running just re-activates that same (soon-to-be-terminated)
+        // process instead of spawning a fresh one — so the app quits and never
+        // comes back, since the old instance is still alive at this point.
+        openTask.arguments = ["-n", Bundle.main.bundleURL.path]
+        do {
+            try openTask.run()
+            NSApp.terminate(nil)
+        } catch {
+            showAlert(title: "재시작 실패", message: error.localizedDescription)
+        }
+    }
+
     /// Moves ~/.desktopcat and the running .app bundle to the Trash, then quits.
     private func performUninstall() {
         if let reason = selfModifyBlockReason() {
@@ -460,10 +480,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     // re-activates the instance that's about to quit instead of starting a
                     // fresh one. Shelling out to /usr/bin/open as an independent process
                     // sidesteps that self-relaunch problem — same trick Sparkle-style
-                    // updaters use.
+                    // updaters use. Still needs -n, though: plain `open` on an app that's
+                    // already running just re-activates it too (same dedup symptom, different
+                    // layer) instead of spawning a second process — and since this old
+                    // instance is still alive at this exact moment, that would mean
+                    // "activate the instance we're about to kill", i.e. it quits and never
+                    // comes back.
                     let openTask = Process()
                     openTask.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-                    openTask.arguments = [bundleURL.path]
+                    openTask.arguments = ["-n", bundleURL.path]
                     do {
                         try openTask.run()
                         NSApp.terminate(nil)

@@ -282,8 +282,26 @@ final class CatWindow {
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = "\(projectName)  \(status.emoji) \(status.label)"
-        alert.informativeText = ProjectSummaries.summary(for: projectName)
         alert.addButton(withTitle: "닫기")
+
+        // Long summaries used to go straight into `informativeText`, which has no
+        // scrolling — past a certain length the alert just grows taller than the
+        // screen, taking its own "닫기" button (and even the alert's titlebar
+        // close control) off-screen with it, unreachable. A fixed-size scrollable
+        // accessory view keeps the alert's overall size constant no matter how
+        // long the summary text is, so its buttons always stay reachable.
+        let scrollView = NSTextView.scrollableTextView()
+        scrollView.frame = NSRect(x: 0, y: 0, width: 420, height: 280)
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .bezelBorder
+        if let textView = scrollView.documentView as? NSTextView {
+            textView.string = ProjectSummaries.summary(for: projectName)
+            textView.isEditable = false
+            textView.font = .systemFont(ofSize: 13)
+            textView.textContainerInset = NSSize(width: 6, height: 6)
+        }
+        alert.accessoryView = scrollView
+
         alert.runModal()
     }
 
