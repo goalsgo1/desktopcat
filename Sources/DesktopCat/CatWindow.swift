@@ -44,7 +44,11 @@ final class CatWindow {
     private let chaseSpeed: CGFloat = 260   // pt/sec
     private let wanderSpeed: CGFloat = 75   // pt/sec
     private let alignSpeed: CGFloat = 420   // pt/sec — cats hustle to their line-up slot
-    private let tickInterval: TimeInterval = 1.0 / 30.0
+    /// Set by AppDelegate before the cats are created: many cats share one main thread, so
+    /// the more cats there are, the slower each one ticks (movement uses speed × tickInterval, so
+    /// walking speed stays the same, only the frame rate drops).
+    static var tickIntervalValue: TimeInterval = 1.0 / 30.0
+    private let tickInterval: TimeInterval = CatWindow.tickIntervalValue
 
     private var position: CGPoint
     private var facingLeft = false

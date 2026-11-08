@@ -5,7 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// roster could quietly tank performance. 100 is far beyond any real
     /// project count and still lays out cleanly with the column-wrapping
     /// left-alignment layout, so it's a safety net rather than a real limit.
-    private let maxCatCount = 100
+    private let maxCatCount = 200
 
     private var roster: [String] = []
     private var projectStatuses: [String: CatStatus] = [:]
@@ -29,6 +29,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         projectStatuses = ProjectStatus.load()
         catScale = CatScaleStore.load()
         roster.forEach { _ = ProjectSummaries.summary(for: $0) } // pre-create summary files so they're editable right away
+        CatWindow.tickIntervalValue = roster.count > 100 ? 1.0 / 10.0 : (roster.count > 60 ? 1.0 / 20.0 : 1.0 / 30.0)
         let positions = spawnPositions(count: roster.count)
 
         catWindows = zip(roster, positions).map { name, position in
